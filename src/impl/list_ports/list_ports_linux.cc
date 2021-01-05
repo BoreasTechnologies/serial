@@ -39,6 +39,7 @@ static string dirname(const string& path);
 static bool path_exists(const string& path);
 static string realpath(const string& path);
 static string usb_sysfs_friendly_name(const string& sys_usb_path);
+static string usb_sysfs_product(const string& sys_usb_path);
 static vector<string> get_sysfs_info(const string& device_path);
 static string read_line(const string& file);
 static string usb_sysfs_hw_string(const string& sysfs_path);
@@ -144,6 +145,18 @@ usb_sysfs_friendly_name(const string& sys_usb_path)
     return format("%s %s %s", manufacturer.c_str(), product.c_str(), serial.c_str() );
 }
 
+string
+usb_sysfs_product(const string& sys_usb_path)
+{
+    unsigned int device_number = 0;
+
+    istringstream( read_line(sys_usb_path + "/devnum") ) >> device_number;
+
+    string product = read_line( sys_usb_path + "/product" );
+
+    return product;
+}
+
 vector<string>
 get_sysfs_info(const string& device_path)
 {
@@ -152,6 +165,8 @@ get_sysfs_info(const string& device_path)
     string friendly_name;
 
     string hardware_id;
+
+    string product;
 
     string sys_device_path = format( "/sys/class/tty/%s/device", device_name.c_str() );
 
@@ -164,6 +179,8 @@ get_sysfs_info(const string& device_path)
             friendly_name = usb_sysfs_friendly_name( sys_device_path );
 
             hardware_id = usb_sysfs_hw_string( sys_device_path );
+
+            product = usb_sysfs_product( sys_device_path );
         }
     }
     else if( device_name.compare(0,6,"ttyACM") == 0 )
@@ -175,6 +192,8 @@ get_sysfs_info(const string& device_path)
             friendly_name = usb_sysfs_friendly_name( sys_device_path );
 
             hardware_id = usb_sysfs_hw_string( sys_device_path );
+
+            product = usb_sysfs_product( sys_device_path );
         }
     }
     else
@@ -196,6 +215,7 @@ get_sysfs_info(const string& device_path)
     vector<string> result;
     result.push_back(friendly_name);
     result.push_back(hardware_id);
+    result.push_back(product);
 
     return result;
 }
@@ -321,10 +341,13 @@ serial::list_ports()
 
         string hardware_id = sysfs_info[1];
 
+        string product = sysfs_info[2];
+
         PortInfo device_entry;
         device_entry.port = device;
         device_entry.description = friendly_name;
         device_entry.hardware_id = hardware_id;
+        device_entry.product = product;
 
         results.push_back( device_entry );
 
