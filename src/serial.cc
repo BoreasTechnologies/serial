@@ -6,7 +6,9 @@
 #endif
 
 #if defined (__MINGW32__)
+#ifndef alloca
 # define alloca __builtin_alloca
+#endif
 #endif
 
 #include "serial/serial.h"

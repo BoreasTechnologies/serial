@@ -19,9 +19,29 @@ using serial::PortInfo;
 using std::vector;
 using std::string;
 
+
+#ifdef DEFINE_DEVPROPKEY
+#undef DEFINE_DEVPROPKEY
+#endif
+
+#define DEFINE_DEVPROPKEY(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8, pid) EXTERN_C const DEVPROPKEY DECLSPEC_SELECTANY name = { { l, w1, w2, { b1, b2,  b3,  b4,  b5,  b6,  b7,  b8 } }, pid }
+DEFINE_DEVPROPKEY(DEVPKEY_Device_BusReportedDeviceDesc,  0x540b947e, 0x8b40, 0x45bc, 0xa8, 0xa2, 0x6a, 0x0b, 0x89, 0x4c, 0xbd, 0xa2, 4);
+
+typedef BOOL (WINAPI *FN_SetupDiGetDevicePropertyW)(
+        HDEVINFO DeviceInfoSet,
+        PSP_DEVINFO_DATA DeviceInfoData,
+        const DEVPROPKEY *PropertyKey,
+        DEVPROPTYPE *PropertyType,
+        PBYTE PropertyBuffer,
+        DWORD PropertyBufferSize,
+        PDWORD RequiredSize,
+        DWORD Flags
+);
+
 static const DWORD port_name_max_length = 256;
 static const DWORD friendly_name_max_length = 256;
 static const DWORD hardware_id_max_length = 256;
+static const DWORD bus_description_max_length = 256;
 
 // Convert a wide Unicode string to an UTF8 string
 std::string utf8_encode(const std::wstring &wstr)
@@ -35,6 +55,9 @@ std::string utf8_encode(const std::wstring &wstr)
 vector<PortInfo>
 serial::list_ports()
 {
+    static FN_SetupDiGetDevicePropertyW fn_SetupDiGetDevicePropertyW = (FN_SetupDiGetDevicePropertyW)
+            GetProcAddress (GetModuleHandle (TEXT("Setupapi.dll")), "SetupDiGetDevicePropertyW");
+
 	vector<PortInfo> devices_found;
 
 	HDEVINFO device_info_set = SetupDiGetClassDevs(
@@ -126,20 +149,37 @@ serial::list_ports()
 		else
 			hardware_id[0] = '\0';
 
+        // Get bus description (see https://stackoverflow.com/questions/3438366/setupdigetdeviceproperty-usage-example)
+        WCHAR bus_descriptionWChar[bus_description_max_length] = {0};
+        DWORD bus_description_actual_length = 0;
+        DEVPROPTYPE ulPropertyType;
+
+        BOOL got_bus_description = fn_SetupDiGetDevicePropertyW !=nullptr && fn_SetupDiGetDevicePropertyW (device_info_set, &device_info_data, &DEVPKEY_Device_BusReportedDeviceDesc,
+                                   &ulPropertyType, (BYTE*)bus_descriptionWChar, bus_description_max_length, &bus_description_actual_length, 0);
+        char bus_description[bus_description_max_length] = {0};
+        if(got_bus_description)
+        {
+            //Hum not sure it is correct but for the moment it seems to work OK at least!
+            wcstombs(bus_description, bus_descriptionWChar, bus_description_actual_length);
+        }
+
 		#ifdef UNICODE
 			std::string portName = utf8_encode(port_name);
 			std::string friendlyName = utf8_encode(friendly_name);
 			std::string hardwareId = utf8_encode(hardware_id);
+			std::string busDescription = utf8_encode(bus_description);
 		#else
 			std::string portName = port_name;
 			std::string friendlyName = friendly_name;
 			std::string hardwareId = hardware_id;
+            std::string busDescription = bus_description;
 		#endif
 
 		PortInfo port_entry;
 		port_entry.port = portName;
 		port_entry.description = friendlyName;
 		port_entry.hardware_id = hardwareId;
+		port_entry.bus_description = busDescription;
 
 		devices_found.push_back(port_entry);
 	}
