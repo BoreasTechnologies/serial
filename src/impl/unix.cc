@@ -519,7 +519,7 @@ Serial::SerialImpl::waitReadable (uint32_t timeout)
     return false;
   }
   // This shouldn't happen, if r > 0 our fd has to be in the list!
-  if (!FD_ISSET (fd_, &readfds)) {
+  if (fd_ <= 0  || !FD_ISSET (fd_, &readfds)) {
     THROW (IOException, "select reports ready to read, but our fd isn't"
            " in the list, this shouldn't happen!");
   }
