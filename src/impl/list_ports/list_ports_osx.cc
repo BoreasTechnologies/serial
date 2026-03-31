@@ -95,7 +95,7 @@ get_parent_iousb_device( io_object_t& serial_port )
     string name = get_class_name(device);
 
     // Walk the IO Registry tree looking for this devices parent IOUSBDevice.
-    while( name != "IOUSBDevice" )
+    while( name != "IOUSBDevice" && name != "IOUSBHostDevice" )
     {
         kern_result = IORegistryEntryGetParentEntry( device,
         kIOServicePlane,
@@ -253,6 +253,7 @@ serial::list_ports(void)
         string device_name = rtrim( get_string_property( parent, "USB Product Name" ) );
         string vendor_name = rtrim( get_string_property( parent, "USB Vendor Name") );
         string description = rtrim( vendor_name + " " + device_name );
+        string product = rtrim( get_string_property( parent, "kUSBProductString" ) );
         if( !description.empty() )
             port_info.description = description;
 
@@ -275,6 +276,8 @@ serial::list_ports(void)
             if( (ret >= 0) && (ret < HARDWARE_ID_STRING_LENGTH) )
                 port_info.hardware_id = cstring;
         }
+
+        port_info.product = product;
 
         devices_found.push_back(port_info);
     }
